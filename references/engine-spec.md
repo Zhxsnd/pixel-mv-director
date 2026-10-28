@@ -197,6 +197,44 @@ LRC 里 `歌：/作詞：/作曲：/編曲：` 开头的行不是歌词，必须
 
 ---
 
+## 11.5 最容易写错的六个原语（伪码）
+
+这六个写错不会报错，只会让画面"看起来不对"，然后你要花几轮去查。照抄伪码。
+
+```
+glow(cx, cy, r, c, strength):                 # 柔光，不要用同心椭圆叠（会出涟漪环）
+    d = sqrt((x-cx)^2 + (y-cy)^2) / r
+    f = clamp(1 - d, 0, 1)^2 * strength
+    out = a*(1-f) + c*f
+
+vgrad(y0, y1, c0, c1, steps=5):               # 渐变，必须量化 + 抖动
+    k = (y - y0) / (y1 - y0) * (steps-1)
+    idx = floor(k) + ((k - floor(k)) > bayer4x4[x%4][y%4] ? 1 : 0)
+    out = lerp(c0, c1, idx / (steps-1))
+
+cap(p0, p1, r0, r1):                          # 锥形胶囊（画手臂/腿，别用矩形）
+    t = clamp(dot(P-p0, p1-p0) / |p1-p0|^2, 0, 1)
+    r = r0 + (r1-r0)*t
+    inside = |P - (p0 + t*(p1-p0))| <= r
+
+iris(a, b, k):                                # 圆形转场，等值线必须是正圆
+    d = |P - center| / (0.62 * W)             # 同一个尺度！x/W 与 y/H 不同分母会变鸡蛋
+    out = d < k*1.08 ? b : a
+    edge: |d - k*1.08| < 0.016 → 描强调色 2px
+
+dissolve(a, b, k):                            # 像素溶解，必须用块噪声
+    n = block_noise_2x2(seed)                 # 逐像素噪声像电视雪花
+    out = n < k ? b : a
+
+dilate(mask, 1):                              # 外描边，禁止 roll（会上下环绕）
+    out = mask | mask<<1 | mask>>1 | mask<<row | mask>>row
+```
+
+另外两条"看不见但一定错"的：
+
+- 任何 `a*(1-k) + c*k` 之前，`k = clamp(k, 0, 1)`。`k>1` 会让 `a*(1-k)` 变负，8 位回绕成青/黄。
+- 把画布切片喂给绘图库之前，先复制成连续内存。非连续切片会按原 stride 读，颜色错位成条纹。
+
 ## 12. 验收清单
 
 - [ ] 像素块大小全片一致，无半像素模糊
